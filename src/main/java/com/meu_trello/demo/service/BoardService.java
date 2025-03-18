@@ -30,9 +30,9 @@ public class BoardService {
         }
     }
 
-    public void delete(Board board) {
-        if (boardRepository.existsById(board.getId())) {
-            boardRepository.delete(board);
+    public void delete(Long id) {
+        if (boardRepository.existsById(id)) {
+            boardRepository.deleteById(id);
         } else {
             throw new IllegalArgumentException("This Board doesn't exists.");
         }

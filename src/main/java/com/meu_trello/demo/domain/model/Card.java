@@ -1,22 +1,31 @@
 package com.meu_trello.demo.domain.model;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.Id;
-import jakarta.persistence.ManyToOne;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.persistence.*;
 import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 @Entity(name = "tb_card")
-@Data
+@Getter
+@Setter
 public class Card {
 
     @Id
-    @GeneratedValue
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     private String nome;
 
-    @ManyToOne
+    @ManyToOne()
+    @JoinColumn(name = "lista_id")
+    @JsonIgnore
     private Lista lista;
 
+    public Card() {}
+
+    public Card(String nome) {
+        this.nome = nome;
+    }
 }
 
