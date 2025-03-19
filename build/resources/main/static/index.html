@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Trello Clone</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        .board-select, .controls {
+            margin-bottom: 10px;
+        }
+        .list-container {
+            display: flex;
+            gap: 10px;
+        }
+        .list {
+            background: #f0f0f0;
+            padding: 10px;
+            width: 200px;
+            cursor: grab;
+        }
+        .list:active {
+            cursor: grabbing;
+        }
+        .card {
+            background: white;
+            padding: 5px;
+            margin: 5px 0;
+            border: 1px solid #ccc;
+            cursor: grab;
+        }
+    </style>
+</head>
+<body>
+    <div>
+        <h3 id="boardSelect" class="board-select"></h3>
+        <button style="display: none;" onclick="addBoard()">Add Board</button>
+    </div>
+    <div class="controls" style="display: none;">
+        <input id="boardName" placeholder="Board Name" />
+        <button onclick="updateBoardName()">Rename Board</button>
+        <button style="display: none;" onclick="deleteBoard()">Delete Board</button>
+    </div>
+    <button onclick="addList()">+ Adicionar outra lista</button>
+    <p>
+    <div id="lists" class="list-container"></div>
+    <script>
+        let url_getBoard = "/board/1";
+        let boards = []; // Lista dos Boards. Sempre vai ter 1 por enquanto.
+        let currentBoard = 1; // Por enquanto sempre vai carregar o board de id 1.
+        let draggedCard = null;
+
+        function fetchData(path, params = {}) {
+            const baseUrl = window.location.origin;
+            const fullUrl = new URL(path, baseUrl);
+
+            // Adiciona parâmetros à URL
+            Object.keys(params).forEach(key => fullUrl.searchParams.append(key, params[key]));
+
+            return fetch(fullUrl, {
+                method: "GET",
+                headers: {
+                    "Accept": "application/json"
+                }
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Erro HTTP! Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log("Dados recebidos:", data);
+                    return data;
+                })
+                .catch(error => {
+                    console.error("Erro ao buscar os dados:", error);
+                });
+        }
+
+        function updateBoardDropdown() {
+            const select = document.getElementById("boardSelect");
+            select.innerHTML = "";
+            boards.forEach(board => {
+                const option = document.createElement("option");
+                option.value = board.id;
+                option.textContent = board.nome;
+                select.appendChild(option);
+            });
+            select.value = currentBoard;
+        }
+
+        function renderLists() {
+            const listsContainer = document.getElementById("lists");
+            listsContainer.innerHTML = "";
+            const board = boards.find(b => b.id === currentBoard);
+            if (!board) return;
+
+            board.lists.forEach(list => {
+                const listDiv = document.createElement("div");
+                listDiv.className = "list";
+                listDiv.innerHTML = `<input placeholder="Digite o nome da lista..." value="${list.nome}" oninput="updateListTitle(${list.id}, this.value)" />
+                                     <p>
+                                     <button onclick="deleteList(${list.id})">- Deleta Lista</button>
+                                     <button onclick="addCard(${list.id})">+ Novo Card</button>`;
+
+                list.cards.forEach(card => {
+                    const cardDiv = document.createElement("div");
+                    cardDiv.className = "card";
+                    cardDiv.draggable = true;
+                    cardDiv.innerHTML = `<input  placeholder="Insira um texto." value="${card.nome}" oninput="updateCard(${list.id}, ${card.id}, this.value)" />
+                                         <button onclick="deleteCard(${card.id})">- Delete Card</button>
+                                        `;
+                    cardDiv.dataset.listId = list.id;
+                    cardDiv.dataset.cardId = card.id;
+
+                    cardDiv.addEventListener("dragstart", (e) => {
+                        draggedCard = { cardDiv, card, oldListId: list.id };
+                        e.dataTransfer.effectAllowed = "move";
+                    });
+
+                    listDiv.appendChild(cardDiv);
+                });
+
+                listDiv.addEventListener("dragover", (e) => {
+                    e.preventDefault();
+                });
+
+                listDiv.addEventListener("drop", (e) => {
+                    e.preventDefault();
+                    if (draggedCard) {
+                        const { cardDiv, card, oldListId } = draggedCard;
+                        const newListId = list.id;
+
+                        if (oldListId !== newListId) {
+                            const oldList = board.lists.find(l => l.id === oldListId);
+                            const newList = board.lists.find(l => l.id === newListId);
+
+                            oldList.cards = oldList.cards.filter(c => c.id !== card.id);
+                            newList.cards.push(card);
+                            renderLists();
+                        }
+                    }
+                });
+
+                listsContainer.appendChild(listDiv);
+            });
+        }
+
+        function addBoard() {
+            const newBoard = { id: Date.now(), nome: `Board ${boards.length + 1}`, lists: [] };
+            boards.push(newBoard);
+            currentBoard = newBoard.id;
+            updateBoardDropdown();
+            renderLists();
+        }
+
+        function addList() {
+            console.log('addList chamado');
+            const board = boards.find(b => b.id === currentBoard);
+            if (board) {
+                board.lists.push({ id: Date.now(), nome: "", cards: [] });
+                renderLists();
+            }
+        }
+
+        function deleteList(listId) {
+            console.log('deleteList chamado');
+            const board = boards.find(b => b.id === currentBoard);
+            if (board) {
+                board.lists = board.lists.filter(l => l.id !== listId);
+                renderLists();
+            }
+        }
+
+        function addCard(listId) {
+            console.log('addCard chamado');
+            const board = boards.find(b => b.id === currentBoard);
+            const list = board?.lists.find(l => l.id === listId);
+            if (list) {
+                list.cards.push({ id: Date.now(), nome: "" });
+                renderLists();
+            }
+        }
+
+        function deleteCard(cardId) {
+            console.log('deleteCard chamado');
+
+        }
+
+        function updateListTitle(listId, newTitle) {
+            console.log('updateListTitle chamado');
+            const board = boards.find(b => b.id === currentBoard);
+            const list = board?.lists.find(l => l.id === listId);
+            if (list) list.nome = newTitle;
+        }
+
+        function updateCard(listId, cardId, newText) {
+            console.log('updateCard chamado');
+            const board = boards.find(b => b.id === currentBoard);
+            const list = board?.lists.find(l => l.id === listId);
+            const card = list?.cards.find(c => c.id === cardId);
+            if (card) card.nome = newText;
+        }
+
+        fetchData(url_getBoard).then(data => {
+
+            boards.push(data);
+            console.log(boards)
+
+            document.getElementById("boardSelect").addEventListener("change", function () {
+                console.log(this.value)
+                currentBoard = Number(this.value);
+                renderLists();
+            });
+
+            updateBoardDropdown();
+            renderLists();
+
+        });
+
+
+    </script>
+</body>
+</html>
