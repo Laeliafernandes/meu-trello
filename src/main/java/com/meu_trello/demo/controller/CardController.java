@@ -1,6 +1,8 @@
 package com.meu_trello.demo.controller;
 
 import com.meu_trello.demo.controller.record.IDRequest;
+import com.meu_trello.demo.controller.record.NomeRequest;
+import com.meu_trello.demo.domain.model.Board;
 import com.meu_trello.demo.domain.model.Card;
 import com.meu_trello.demo.domain.model.Lista;
 import com.meu_trello.demo.service.CardService;
@@ -49,6 +51,29 @@ public class CardController {
     public ResponseEntity<Void> deleteCard(@PathVariable Long cardId) {
         cardService.deleteCard(cardId);
         return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{cardId}")
+    @Operation(
+            summary = "Atualiza o nome de um determinado card.",
+            description = ""
+    )
+    public Card updateCardName(
+            @PathVariable Long cardId,
+            @RequestBody NomeRequest body) {
+
+        String nome = body.nome();
+
+        Card card = cardService.findById(cardId);
+
+        // Atualiza o nome do Card
+        card.setNome(nome);
+
+        // Salva as alterações do Card
+        cardService.update(card);
+
+        // Retorna o Card atualizado
+        return card;
     }
 
     @PutMapping("/{cardId}/to/{listaId}")

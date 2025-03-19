@@ -44,7 +44,7 @@ public class BoardController {
         return ResponseEntity.ok(board);
     }
 
-    @PostMapping("/{boardId}/lists/{listaId}/cards")
+    @PostMapping("/{boardId}/lists/{listaId}/card")
     @Operation(
             summary = "Cria um card em uma determinada lista de um determinado board",
             description = ""
@@ -68,38 +68,6 @@ public class BoardController {
         listaService.create(lista);
 
         // Retorna o Card adicionado.
-        return card;
-    }
-
-    @PutMapping("/{boardId}/lists/{listaId}/cards/{cardId}")
-    @Operation(
-            summary = "Atuaiza o nome de um determinado card em uma determinada lista de um determinado board",
-            description = ""
-    )
-    public Card updateCardName(
-            @PathVariable Long boardId,
-            @PathVariable Long listaId,
-            @PathVariable Long cardId,
-            @RequestBody NomeRequest body) {
-
-        String nome = body.nome();
-
-        // Recupera o Board e a Lista pelo ID
-        Board board = boardService.findById(boardId);
-        Lista lista = listaService.findById(listaId);
-        Card card = cardService.findById(cardId);
-
-        if (!card.getLista().getId().equals(lista.getId())) {
-            throw new RuntimeException("O Card não pertence a esta Lista.");
-        }
-
-        // Atualiza o nome do Card
-        card.setNome(nome);
-
-        // Salva as alterações do Card
-        cardService.update(card);
-
-        // Retorna o Card atualizado
         return card;
     }
 

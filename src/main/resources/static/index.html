@@ -18,25 +18,49 @@
         }
         .list {
             background: #f0f0f0;
-            padding: 10px;
+            padding: 20px;
             width: 200px;
             cursor: grab;
+            border: 1px solid #ccc;
+            margin-right: 15px;
         }
         .list:active {
             cursor: grabbing;
         }
         .card {
             background: white;
-            padding: 5px;
-            margin: 5px 0;
-            border: 1px solid #ccc;
+            padding: 10px;
+            margin: 10px 0;
+            border: 3px dashed #ccc;
             cursor: grab;
         }
+        .card input {
+            margin-bottom: 10px;
+        }
+
+        #boardSelect[contenteditable="true"] {
+            cursor: pointer;
+            display: inline-block;
+            padding: 5px;
+            background: none;
+            border: none;
+            font-family: inherit;
+            font-size: inherit;
+            outline: none;
+            font-weight: normal;
+        }
+
+        #boardSelect[contenteditable="true"]:focus {
+            background-color: #f0f0f0; /* Cor de fundo ao focar (opcional) */
+            border-radius: 4px; /* Borda arredondada (opcional) */
+            font-weight: normal;
+        }
+
     </style>
 </head>
 <body>
     <div>
-        <h3 id="boardSelect" class="board-select"></h3>
+        <h3 id="boardSelect" class="board-select" contenteditable="true" onclick="editBoardName()"></h3>
         <button style="display: none;" onclick="addBoard()">Add Board</button>
     </div>
     <div class="controls" style="display: none;">
@@ -49,9 +73,278 @@
     <div id="lists" class="list-container"></div>
     <script>
         let url_getBoard = "/board/1";
+
         let boards = []; // Lista dos Boards. Sempre vai ter 1 por enquanto.
         let currentBoard = 1; // Por enquanto sempre vai carregar o board de id 1.
         let draggedCard = null;
+
+        function editBoardName() {
+            const boardSelect = document.getElementById('boardSelect');
+            const currentName = boardSelect.textContent.trim();
+
+            // Cria um input com o nome atual como valor
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = currentName;
+            input.style.fontSize = 'inherit'; // Para manter o mesmo tamanho da fonte
+            input.style.border = 'none'; // Para não ter borda
+            input.style.outline = 'none'; // Para não mostrar o outline
+            input.style.whiteSpace = 'nowrap'; // Evita quebra de linha
+            input.style.width = '50vw'; // Limita a largura a 50% da largura da tela
+            input.style.maxWidth = '50vw'; // Garante que não ultrapasse 50% da largura da tela
+
+            // Substitui o h3 pelo input
+            boardSelect.innerHTML = '';
+            boardSelect.appendChild(input);
+
+            // Quando o input perder o foco (blur) ou pressionar Enter
+            input.addEventListener('blur', () => saveBoardName(input.value));
+            input.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault(); // Evita nova linha no input
+                    saveBoardName(input.value);
+                }
+            });
+
+            // Foca no input automaticamente para que o usuário comece a digitar
+            input.focus();
+        }
+
+        function saveBoardName(newName) {
+            // Verifica se o nome não está vazio antes de atualizar
+            if (!newName.trim()) {
+                alert("Nome não pode ser vazio!");
+                return;
+            }
+
+            // Atualiza o nome do board no servidor
+            sendToBack_putNovoTituloBoard(currentBoard, newName);
+
+            // Volta o h3 com o novo nome
+            const boardSelect = document.getElementById('boardSelect');
+            boardSelect.innerHTML = newName;
+        }
+
+
+        function sendToBack_deleteCard(cardId) {
+            let path = `/card/${cardId}`;
+            console.log(path);
+
+            const baseUrl = window.location.origin;
+            const fullUrl = new URL(path, baseUrl);
+
+            fetch(fullUrl, {
+                method: 'DELETE', // Define o método HTTP
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Erro ao deletar: ${response.statusText}`);
+                    }
+                    return response.text(); // Apenas lê a resposta sem tentar converter para JSON
+                })
+                .then(() => {
+                    const board = boards.find(b => b.id === currentBoard);
+                    if (board) {
+                        for (const list of board.lists) {
+                            const index = list.cards.findIndex(c => c.id === cardId);
+
+                            if (index !== -1) {
+                                list.cards.splice(index, 1); // Remove o card no índice encontrado
+                                renderLists();
+                            }
+                        }
+                    }
+                })
+                .catch(error => console.error('Erro:', error)); // Captura e trata erros
+        }
+
+        function sendToBack_deleteLista(idLista) {
+            let path = `/lista/${idLista}`;
+            console.log(path);
+
+            const baseUrl = window.location.origin;
+            const fullUrl = new URL(path, baseUrl);
+
+            fetch(fullUrl, {
+                method: 'DELETE', // Define o método HTTP
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Erro ao deletar: ${response.statusText}`);
+                    }
+                    return response.text(); // Apenas lê a resposta sem tentar converter para JSON
+                })
+                .then(() => {
+                    const board = boards.find(b => b.id === currentBoard);
+                    if (board) {
+                        board.lists = board.lists.filter(l => l.id !== idLista); // Corrigi a variável listId para idLista
+                        renderLists();
+                    }
+                })
+                .catch(error => console.error('Erro:', error)); // Captura e trata erros
+        }
+
+        function sendToBack_putNovoTituloBoard(currentBoard, newName) {
+            let path = `/board/${currentBoard}`
+
+            const baseUrl = window.location.origin;
+            const fullUrl = new URL(path, baseUrl);
+            fetch(fullUrl, {
+                method: 'PUT', // Define o método HTTP
+                headers: {
+                    'Content-Type': 'application/json' // Define o tipo de conteúdo como JSON
+                },
+                body: JSON.stringify({ // Converte o objeto em JSON
+                    nome: newName || "(Informe um título para este Board)"
+                })
+            })
+                .then(response => response.json()) // Converte a resposta para JSON
+                .then(data => {
+                    const board = boards.find(b => b.id === currentBoard);
+                    board.nome = newName
+                    renderLists();
+
+
+                }) // Exibe a resposta no console
+                .catch(error => console.error('Erro:', error)); // Captura e trata erros
+        }
+
+        function sendToBack_putMoveCard(draggedCard, newListaId) {
+            const { card, oldListId } = draggedCard;
+            const cardId = card.id
+            let path = `/card/${cardId}/to/${newListaId}`
+            console.log(path)
+            const baseUrl = window.location.origin;
+            const fullUrl = new URL(path, baseUrl);
+            fetch(fullUrl, {
+                method: 'PUT', // Define o método HTTP
+                headers: {
+                    'Content-Type': 'application/json' // Define o tipo de conteúdo como JSON
+                }
+            })
+                .then(response => response.json()) // Converte a resposta para JSON
+                .then(data => {
+                    const board = boards.find(b => b.id === currentBoard);
+                    if (oldListId !== newListaId) {
+                        const oldList = board.lists.find(l => l.id === oldListId);
+                        const newList = board.lists.find(l => l.id === newListaId);
+
+                        oldList.cards = oldList.cards.filter(c => c.id !== card.id);
+                        newList.cards.push(card);
+                        renderLists();
+                    }
+
+                }) // Exibe a resposta no console
+                .catch(error => console.error('Erro:', error)); // Captura e trata erros
+        }
+
+        function sendToBack_putNovoTituloCard(cardId, newText) {
+            let path = `/card/${cardId}`
+            console.log(path)
+            const baseUrl = window.location.origin;
+            const fullUrl = new URL(path, baseUrl);
+            fetch(fullUrl, {
+                method: 'PUT', // Define o método HTTP
+                headers: {
+                    'Content-Type': 'application/json' // Define o tipo de conteúdo como JSON
+                },
+                body: JSON.stringify({ // Converte o objeto em JSON
+                    nome: newText || ""
+                })
+            })
+                .then(response => response.json()) // Converte a resposta para JSON
+                .then(data => {
+
+                    const board = boards.find(b => b.id === currentBoard);
+                    for (const list of board.lists) {
+                        cardEncontrado = list.cards.find(c => c.id === cardId);
+                        if (cardEncontrado) {
+                            cardEncontrado.nome = newText;
+                            console.log(`Nome do card ${cardId} atualizado para: ${newText}`);
+                            break; // Para a busca ao encontrar o card
+                        }
+                    }
+
+                }) // Exibe a resposta no console
+                .catch(error => console.error('Erro:', error)); // Captura e trata erros
+        }
+
+        function sendToBack_putNovoTituloLista(listId, newTitle) {
+            let path = `/board/${currentBoard}/lists/${listId}`
+            console.log(path)
+            const baseUrl = window.location.origin;
+            const fullUrl = new URL(path, baseUrl);
+            fetch(fullUrl, {
+                method: 'PUT', // Define o método HTTP
+                headers: {
+                    'Content-Type': 'application/json' // Define o tipo de conteúdo como JSON
+                },
+                body: JSON.stringify({ // Converte o objeto em JSON
+                    nome: newTitle || ""
+                })
+            })
+                .then(response => response.json()) // Converte a resposta para JSON
+                .then(data => {
+                    const board = boards.find(b => b.id === currentBoard);
+                    const list = board?.lists.find(l => l.id === listId);
+
+                    if (list) {
+                        list.nome = newTitle;
+                        console.log('Título atualizado:', newTitle);
+                        renderLists(); // Re-renderiza a interface se necessário
+                    }
+                }) // Exibe a resposta no console
+                .catch(error => console.error('Erro:', error)); // Captura e trata erros
+        }
+
+        function sendToBack_postNovoCard(boardId, listaId) {
+            let path = ` /board/${boardId}/lists/${listaId}/card`
+            console.log(path)
+            const baseUrl = window.location.origin;
+            const fullUrl = new URL(path, baseUrl);
+            fetch(fullUrl, {
+                method: 'POST', // Define o método HTTP
+                headers: {
+                    'Content-Type': 'application/json' // Define o tipo de conteúdo como JSON
+                },
+                body: JSON.stringify({ // Converte o objeto em JSON
+                    nome: ''
+                })
+            })
+                .then(response => response.json()) // Converte a resposta para JSON
+                .then(data => {
+                    const board = boards.find(b => b.id === currentBoard);
+                    const lista = board?.lists.find(l => l.id === listaId);
+                    if (lista) {
+                        lista.cards.push({ id: data.id, nome: "" });
+                        renderLists();
+                    }
+                }) // Exibe a resposta no console
+                .catch(error => console.error('Erro:', error)); // Captura e trata erros
+        }
+
+        function sendToBack_postNovaLista(idBoard) {
+            let path = `/board/${idBoard}/lists`
+            console.log(path)
+            const baseUrl = window.location.origin;
+            const fullUrl = new URL(path, baseUrl);
+            fetch(fullUrl, {
+                method: 'POST', // Define o método HTTP
+                headers: {
+                    'Content-Type': 'application/json' // Define o tipo de conteúdo como JSON
+                },
+                body: JSON.stringify({ // Converte o objeto em JSON
+                    nome: ''
+                })
+            })
+                .then(response => response.json()) // Converte a resposta para JSON
+                .then(data => {
+                    const board = boards.find(b => b.id === currentBoard)
+                    board.lists.push(data)
+                    renderLists()
+                }) // Exibe a resposta no console
+                .catch(error => console.error('Erro:', error)); // Captura e trata erros
+        }
 
         function fetchData(path, params = {}) {
             const baseUrl = window.location.origin;
@@ -102,7 +395,7 @@
             board.lists.forEach(list => {
                 const listDiv = document.createElement("div");
                 listDiv.className = "list";
-                listDiv.innerHTML = `<input placeholder="Digite o nome da lista..." value="${list.nome}" oninput="updateListTitle(${list.id}, this.value)" />
+                listDiv.innerHTML = `<input placeholder="Digite o nome da lista..." value="${list.nome}" id="list-title-${list.id}" />
                                      <p>
                                      <button onclick="deleteList(${list.id})">- Deleta Lista</button>
                                      <button onclick="addCard(${list.id})">+ Novo Card</button>`;
@@ -111,8 +404,8 @@
                     const cardDiv = document.createElement("div");
                     cardDiv.className = "card";
                     cardDiv.draggable = true;
-                    cardDiv.innerHTML = `<input  placeholder="Insira um texto." value="${card.nome}" oninput="updateCard(${list.id}, ${card.id}, this.value)" />
-                                         <button onclick="deleteCard(${card.id})">- Delete Card</button>
+                    cardDiv.innerHTML = `<input  placeholder="Insira um texto." value="${card.nome}" id="list-card-text-${card.id}"  />
+                                         <button onclick="deleteCard(${card.id})">- Deleta Card</button>
                                         `;
                     cardDiv.dataset.listId = list.id;
                     cardDiv.dataset.cardId = card.id;
@@ -132,22 +425,54 @@
                 listDiv.addEventListener("drop", (e) => {
                     e.preventDefault();
                     if (draggedCard) {
-                        const { cardDiv, card, oldListId } = draggedCard;
-                        const newListId = list.id;
-
-                        if (oldListId !== newListId) {
-                            const oldList = board.lists.find(l => l.id === oldListId);
-                            const newList = board.lists.find(l => l.id === newListId);
-
-                            oldList.cards = oldList.cards.filter(c => c.id !== card.id);
-                            newList.cards.push(card);
-                            renderLists();
-                        }
+                        sendToBack_putMoveCard(draggedCard, list.id)
                     }
                 });
 
                 listsContainer.appendChild(listDiv);
             });
+
+            // Eventos para alterar título da lista.
+
+            document.querySelectorAll("input[id^='list-title-']").forEach(input => {
+                console.log(input)
+                input.addEventListener("keydown", (event) => {
+                    console.log("Tecla pressionada:", event.key); // Verifica se o evento está sendo detectado
+
+                    if (event.key === "Enter") {
+                        event.preventDefault(); // Evita que o input quebre linha (caso seja textarea)
+
+                        const listId = input.id.replace("list-title-", ""); // Obtém o ID da lista
+                        const newTitle = input.value.trim(); // Remove espaços extras
+
+                        console.log(`Atualizando título da lista ${listId} para: ${newTitle}`);
+                        sendToBack_putNovoTituloLista(listId, newTitle);
+
+                    }
+                });
+            });
+
+            // Eventos para alterar título do card.
+
+            document.querySelectorAll("input[id^='list-card-text-']").forEach(input => {
+                console.log(input)
+                input.addEventListener("keydown", (event) => {
+                    console.log("Tecla pressionada:", event.key); // Verifica se o evento está sendo detectado
+
+                    if (event.key === "Enter") {
+                        event.preventDefault(); // Evita que o input quebre linha (caso seja textarea)
+
+                        const cardId = input.id.replace("list-card-text-", ""); // Obtém o ID do card.
+                        const newText = input.value.trim(); // Remove espaços extras
+
+                        console.log(`Atualizando título do card ${cardId} para: ${newText}`);
+                        sendToBack_putNovoTituloCard(cardId, newText);
+
+                    }
+                });
+            });
+
+
         }
 
         function addBoard() {
@@ -155,74 +480,56 @@
             boards.push(newBoard);
             currentBoard = newBoard.id;
             updateBoardDropdown();
-            renderLists();
+            getBoard();
         }
 
         function addList() {
             console.log('addList chamado');
-            const board = boards.find(b => b.id === currentBoard);
-            if (board) {
-                board.lists.push({ id: Date.now(), nome: "", cards: [] });
-                renderLists();
-            }
+            sendToBack_postNovaLista(currentBoard)
         }
 
         function deleteList(listId) {
             console.log('deleteList chamado');
-            const board = boards.find(b => b.id === currentBoard);
-            if (board) {
-                board.lists = board.lists.filter(l => l.id !== listId);
-                renderLists();
-            }
+            sendToBack_deleteLista(listId)
         }
 
         function addCard(listId) {
             console.log('addCard chamado');
-            const board = boards.find(b => b.id === currentBoard);
-            const list = board?.lists.find(l => l.id === listId);
-            if (list) {
-                list.cards.push({ id: Date.now(), nome: "" });
-                renderLists();
-            }
+            sendToBack_postNovoCard(currentBoard, listId)
         }
 
         function deleteCard(cardId) {
             console.log('deleteCard chamado');
-
+            sendToBack_deleteCard(cardId)
         }
 
-        function updateListTitle(listId, newTitle) {
+        function updateListTitle(event, listId, newTitle) {
             console.log('updateListTitle chamado');
-            const board = boards.find(b => b.id === currentBoard);
-            const list = board?.lists.find(l => l.id === listId);
-            if (list) list.nome = newTitle;
+            console.log(event)
+            if (event.key === "Enter") {
+                sendToBack_putNovoTituloLista(listId, newTitle)
+            }
         }
 
-        function updateCard(listId, cardId, newText) {
-            console.log('updateCard chamado');
-            const board = boards.find(b => b.id === currentBoard);
-            const list = board?.lists.find(l => l.id === listId);
-            const card = list?.cards.find(c => c.id === cardId);
-            if (card) card.nome = newText;
-        }
+        function getBoard() {
+            fetchData(url_getBoard).then(data => {
 
-        fetchData(url_getBoard).then(data => {
+                boards.push(data);
+                console.log(boards)
 
-            boards.push(data);
-            console.log(boards)
+                document.getElementById("boardSelect").addEventListener("change", function () {
+                    console.log(this.value)
+                    currentBoard = Number(this.value);
+                    renderLists();
+                });
 
-            document.getElementById("boardSelect").addEventListener("change", function () {
-                console.log(this.value)
-                currentBoard = Number(this.value);
+                updateBoardDropdown();
                 renderLists();
+
             });
+        }
 
-            updateBoardDropdown();
-            renderLists();
-
-        });
-
-
+        getBoard();
     </script>
 </body>
 </html>

@@ -27,7 +27,7 @@ public class DataInitializer {
     public void initializeDatabase() {
 
             if (boardRepository.count() == 0) {
-                Board board = new Board("Board 1");
+                Board board = new Board("Exemplo de Board.");
                 Lista lista1 = new Lista("Lista de Exemplo 1");
                 Lista lista2 = new Lista("Lista de Exemplo 2");
 
